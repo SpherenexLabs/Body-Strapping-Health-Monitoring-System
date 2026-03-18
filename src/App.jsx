@@ -263,22 +263,6 @@ function App() {
 
   useEffect(() => {
     requestCurrentLocation()
-
-    if (!navigator.geolocation || !window.isSecureContext) return
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        setLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          source: 'Live GPS (Auto)',
-        })
-        setMapError('')
-      },
-      () => {},
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 3000 },
-    )
-
-    return () => navigator.geolocation.clearWatch(watchId)
   }, [])
 
   useEffect(() => {
@@ -371,7 +355,9 @@ function App() {
     return (item.hr / 2 + item.spo2 + item.temp * 2) / 3
   })
 
-  const mapEmbedSrc = `https://www.google.com/maps?q=${location.lat},${location.lng}&hl=en&z=17&output=embed`
+  const mapLat = Number(location.lat).toFixed(5)
+  const mapLng = Number(location.lng).toFixed(5)
+  const mapEmbedSrc = `https://www.google.com/maps?q=${mapLat},${mapLng}&hl=en&z=17&output=embed`
 
   return (
     <div className="dashboard">
