@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { onValue } from 'firebase/database'
 import './App.css'
-import { getBodyRef, logEvent, setSosButtonActive } from './firebase'
+import { getBodyRef, logEvent, setSosButtonValue } from './firebase'
 
 const TELEGRAM_BOT_TOKEN = '8720013737:AAGTpg0-HVY1gIN7g9ESHpzPMn6JVOvIawg'
 const TELEGRAM_CHAT_ID = '6333513741'
@@ -51,6 +51,27 @@ function getSpO2Label(value) {
   if (value < LIMITS.spo2.low) return 'Low'
   if (value < LIMITS.spo2.medium) return 'Medium'
   return 'Normal'
+}
+
+function stabilizeNumeric(prev, next, threshold) {
+  if (next === null) return prev
+  if (prev === null) return next
+  if (Math.abs(next - prev) < threshold) return prev
+  return next
+}
+
+function distanceMeters(a, b) {
+  if (!a || !b) return Number.POSITIVE_INFINITY
+  const toRad = (deg) => (deg * Math.PI) / 180
+  const earthRadius = 6371000
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const lat1 = toRad(a.lat)
+  const lat2 = toRad(b.lat)
+  const sinLat = Math.sin(dLat / 2)
+  const sinLng = Math.sin(dLng / 2)
+  const h = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng
+  return 2 * earthRadius * Math.asin(Math.sqrt(h))
 }
 
 function getAiSuggestions(metrics) {
@@ -138,11 +159,19 @@ function App() {
   const [location, setLocation] = useState({ lat: 13.0827, lng: 80.2707, source: 'Default' })
   const [mapError, setMapError] = useState('')
   const [isLocating, setIsLocating] = useState(false)
-  const [sendingSos, setSendingSos] = useState(false)
   const [modalAlert, setModalAlert] = useState(null)
 
   const previousFallRef = useRef(0)
+  const previousButtonRef = useRef(0)
   const cooldownRef = useRef({})
+  const stableMetricsRef = useRef({
+    hr: null,
+    spo2: null,
+    temp: null,
+    hum: null,
+    systolic: null,
+    diastolic: null,
+  })
 
   const pushUiAlert = (message, type = 'warning') => {
     const item = {
@@ -164,43 +193,124 @@ function App() {
 
   const sendTelegramMessage = async (message) => {
     const endpoint = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: TELEGRAM_CHAT_ID,
-        text: message,
-      }),
+    const params = new URLSearchParams({
+      chat_id: TELEGRAM_CHAT_ID,
+      text: message,
     })
 
-    if (!response.ok) {
-      throw new Error('Telegram API rejected the request')
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: TELEGRAM_CHAT_ID,
+          text: message,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Telegram POST rejected')
+      }
+      return
+    } catch {
+      // Fallback to GET (avoids some browser preflight/CORS issues with JSON POST).
+      try {
+        const response = await fetch(`${endpoint}?${params.toString()}`)
+        if (!response.ok) {
+          throw new Error('Telegram GET rejected')
+        }
+        return
+      } catch {
+        // Last fallback: send request without reading response.
+        await fetch(`${endpoint}?${params.toString()}`, { mode: 'no-cors' })
+      }
     }
   }
 
-  const getLocationText = () => {
-    if (!location?.lat || !location?.lng) return 'Location unavailable'
-    return `https://maps.google.com/?q=${location.lat},${location.lng}`
+  const sendTelegramLocation = async (lat, lng) => {
+    const endpoint = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendLocation`
+    const params = new URLSearchParams({
+      chat_id: TELEGRAM_CHAT_ID,
+      latitude: String(lat),
+      longitude: String(lng),
+    })
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: TELEGRAM_CHAT_ID,
+          latitude: lat,
+          longitude: lng,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Telegram location POST rejected')
+      }
+      return
+    } catch {
+      try {
+        const response = await fetch(`${endpoint}?${params.toString()}`)
+        if (!response.ok) {
+          throw new Error('Telegram location GET rejected')
+        }
+        return
+      } catch {
+        await fetch(`${endpoint}?${params.toString()}`, { mode: 'no-cors' })
+      }
+    }
   }
 
-  const writeEvent = async (eventType, details) => {
+  const getLocationText = (loc = location) => {
+    if (!loc?.lat || !loc?.lng) return 'Location unavailable'
+    return `https://maps.google.com/?q=${loc.lat},${loc.lng}`
+  }
+
+  const resolveAlertLocation = () => new Promise((resolve) => {
+    if (!navigator.geolocation || !window.isSecureContext) {
+      resolve(location)
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latestLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          source: 'Live GPS',
+        }
+        setLocation((prev) => (distanceMeters(prev, latestLocation) >= 25 ? latestLocation : prev))
+        setMapError('')
+        resolve(latestLocation)
+      },
+      () => {
+        resolve(location)
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
+    )
+  })
+
+  const writeEvent = async (eventType, details, eventLocation = location) => {
     const event = {
       type: eventType,
       details,
       time: Date.now(),
-      location,
+      location: eventLocation,
     }
     await logEvent(event)
     setEvents((prev) => [event, ...prev].slice(0, 25))
   }
 
   const triggerAlert = async (eventType, message, shouldPopup = false) => {
+    const alertLocation = await resolveAlertLocation()
     const eventTime = formatTime(Date.now())
     const telegramMessage = [
       `Body-Strapping Alert: ${eventType}`,
       `Message: ${message}`,
       `Time: ${eventTime}`,
-      `Location: ${getLocationText()}`,
+      `Location: ${getLocationText(alertLocation)}`,
     ].join('\n')
 
     pushUiAlert(`${eventType}: ${message}`, eventType === 'Emergency' ? 'danger' : 'warning')
@@ -209,13 +319,26 @@ function App() {
       openAlertModal(eventType, message, eventTime)
     }
 
-    try {
-      await Promise.all([
-        writeEvent(eventType, message),
-        sendTelegramMessage(telegramMessage),
-      ])
-    } catch {
-      pushUiAlert('Failed to send Telegram alert. Check bot token/chat id.', 'danger')
+    const [eventResult, messageResult, locationResult] = await Promise.allSettled([
+      writeEvent(eventType, message, alertLocation),
+      sendTelegramMessage(telegramMessage),
+      sendTelegramLocation(alertLocation.lat, alertLocation.lng),
+    ])
+
+    if (eventResult.status === 'rejected') {
+      pushUiAlert('Failed to write alert event to Firebase.', 'danger')
+    }
+
+    if (messageResult.status === 'rejected') {
+      try {
+        await sendTelegramMessage(telegramMessage)
+      } catch {
+        pushUiAlert('Failed to send Telegram SOS message.', 'danger')
+      }
+    }
+
+    if (locationResult.status === 'rejected') {
+      pushUiAlert('Telegram location pin failed, but message was attempted.', 'warning')
     }
   }
 
@@ -241,11 +364,12 @@ function App() {
     setIsLocating(true)
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setLocation({
+        const nextLocation = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
           source: 'Live GPS',
-        })
+        }
+        setLocation((prev) => (distanceMeters(prev, nextLocation) >= 25 ? nextLocation : prev))
         setMapError('')
         setIsLocating(false)
       },
@@ -270,15 +394,32 @@ function App() {
       const payload = snapshot.val() || {}
       const bpRaw = payload.BP ?? 'Not available'
       const { systolic, diastolic } = parseBP(bpRaw)
+      const stablePrevious = stableMetricsRef.current
+      const stableHr = stabilizeNumeric(stablePrevious.hr, parseNumber(payload.HR), 1)
+      const stableSpo2 = stabilizeNumeric(stablePrevious.spo2, parseNumber(payload.Spo2), 1)
+      const stableTemp = stabilizeNumeric(stablePrevious.temp, parseNumber(payload.Temp), 0.2)
+      const stableHum = stabilizeNumeric(stablePrevious.hum, parseNumber(payload.Hum), 1)
+      const stableSystolic = stabilizeNumeric(stablePrevious.systolic, systolic, 2)
+      const stableDiastolic = stabilizeNumeric(stablePrevious.diastolic, diastolic, 2)
+
+      stableMetricsRef.current = {
+        hr: stableHr,
+        spo2: stableSpo2,
+        temp: stableTemp,
+        hum: stableHum,
+        systolic: stableSystolic,
+        diastolic: stableDiastolic,
+      }
+
       const next = {
-        hr: parseNumber(payload.HR),
-        spo2: parseNumber(payload.Spo2),
-        temp: parseNumber(payload.Temp),
-        hum: parseNumber(payload.Hum),
+        hr: stableHr,
+        spo2: stableSpo2,
+        temp: stableTemp,
+        hum: stableHum,
         fall: parseNumber(payload.Fall) || 0,
         bpRaw: String(bpRaw),
-        systolic,
-        diastolic,
+        systolic: stableSystolic,
+        diastolic: stableDiastolic,
         button: parseNumber(payload.Button) || 0,
         updatedAt: Date.now(),
       }
@@ -303,6 +444,18 @@ function App() {
       }
       previousFallRef.current = next.fall
 
+      if (next.button === 1 && previousButtonRef.current !== 1) {
+        triggerAlert('Emergency', 'Emergency SOS alert.', true).finally(async () => {
+          try {
+            await setSosButtonValue(0)
+            previousButtonRef.current = 0
+          } catch {
+            pushUiAlert('Unable to reset Firebase Button to 0 after SOS.', 'danger')
+          }
+        })
+      }
+      previousButtonRef.current = next.button
+
       const hrLabel = getRangeLabel(next.hr, LIMITS.hr.low, LIMITS.hr.high)
       const spo2Label = getSpO2Label(next.spo2)
       const tempLabel = getRangeLabel(next.temp, LIMITS.temp.low, LIMITS.temp.high)
@@ -324,16 +477,6 @@ function App() {
 
     return () => unsubscribe()
   }, [])
-
-  const sendSos = async () => {
-    setSendingSos(true)
-    try {
-      await setSosButtonActive()
-      await triggerAlert('Emergency', 'SOS button pressed by patient.', true)
-    } finally {
-      setSendingSos(false)
-    }
-  }
 
   const hrLabel = getRangeLabel(metrics.hr, LIMITS.hr.low, LIMITS.hr.high)
   const spo2Label = getSpO2Label(metrics.spo2)
@@ -380,9 +523,6 @@ function App() {
             Last update: {metrics.updatedAt ? formatTime(metrics.updatedAt) : 'Waiting for Firebase data...'}
           </p>
         </div>
-        <button className="sos-button" onClick={sendSos} disabled={sendingSos}>
-          {sendingSos ? 'Sending SOS...' : 'Emergency SOS'}
-        </button>
       </header>
 
       <section className="metric-grid">

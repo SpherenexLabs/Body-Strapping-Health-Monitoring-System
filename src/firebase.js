@@ -26,6 +26,10 @@ export async function setSosButtonActive() {
   await set(ref(db, `${BODY_PATH}/Button`), 1)
 }
 
+export async function setSosButtonValue(value) {
+  await set(ref(db, `${BODY_PATH}/Button`), value)
+}
+
 export async function logEvent(event) {
   const eventsRef = ref(db, `${BODY_PATH}/Events`)
   await push(eventsRef, event)
