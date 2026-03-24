@@ -202,7 +202,7 @@ function App() {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        : JSON.stringify({
           chat_id: TELEGRAM_CHAT_ID,
           text: message,
         }),
@@ -239,7 +239,7 @@ function App() {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        : JSON.stringify({
           chat_id: TELEGRAM_CHAT_ID,
           latitude: lat,
           longitude: lng,
@@ -307,7 +307,7 @@ function App() {
     const alertLocation = await resolveAlertLocation()
     const eventTime = formatTime(Date.now())
     const telegramMessage = [
-      `Body-Strapping Alert: ${eventType}`,
+      `-Strapping Alert: ${eventType}`,
       `Message: ${message}`,
       `Time: ${eventTime}`,
       `Location: ${getLocationText(alertLocation)}`,
@@ -390,7 +390,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const unsubscribe = onValue(getBodyRef(), (snapshot) => {
+    const unsubscribe = onValue(getRef(), (snapshot) => {
       const payload = snapshot.val() || {}
       const bpRaw = payload.BP ?? 'Not available'
       const { systolic, diastolic } = parseBP(bpRaw)
@@ -517,7 +517,7 @@ function App() {
 
       <header className="hero-panel">
         <div>
-          <h1>Body-Strapping Health Monitoring System</h1>
+          <h1>-Strapping Health Monitoring System</h1>
           {/* <p>Real-time vitals, emergency response, AI suggestions, and event timeline.</p> */}
           <p className="timestamp">
             Last update: {metrics.updatedAt ? formatTime(metrics.updatedAt) : 'Waiting for Firebase data...'}
@@ -537,7 +537,7 @@ function App() {
           <span className={statusClass(spo2Label)}>{spo2Label}</span>
         </article>
         <article className="metric-card">
-          <h3>Body Temperature</h3>
+          <h3> Temperature</h3>
           <strong>{metrics.temp ?? '--'} C</strong>
           <span className={statusClass(tempLabel)}>{tempLabel}</span>
         </article>
@@ -567,7 +567,7 @@ function App() {
             <TinyChart data={combinedSeries} color="#1f7a8c" title="Combined Health Trend" />
             <TinyChart data={chartData.hr} color="#f94144" title="Heart Rate" />
             <TinyChart data={chartData.spo2} color="#277da1" title="SpO2" />
-            <TinyChart data={chartData.temp} color="#f3722c" title="Body Temperature" />
+            <TinyChart data={chartData.temp} color="#f3722c" title="Temperature" />
             <TinyChart data={chartData.hum} color="#577590" title="Humidity" />
             <TinyChart data={chartData.systolic} color="#f8961e" title="Blood Pressure Systolic" />
           </div>
@@ -579,7 +579,7 @@ function App() {
             <li>Real-time heart rate monitoring: {metrics.hr ?? '--'} bpm</li>
             <li>Real-time SpO2 monitoring: {metrics.spo2 ?? '--'} %</li>
             <li>Real-time blood pressure monitoring: {metrics.bpRaw}</li>
-            <li>Real-time body temperature monitoring: {metrics.temp ?? '--'} C</li>
+            <li>Real-time temperature monitoring: {metrics.temp ?? '--'} C</li>
             <li>Real-time ambient humidity monitoring: {metrics.hum ?? '--'} %</li>
             <li>Emergency risk indication: {metrics.fall === 1 ? 'High (fall detected)' : 'Low'}</li>
             <li>Current location source: {location.source}</li>
