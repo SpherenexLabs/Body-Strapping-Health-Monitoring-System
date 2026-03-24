@@ -4,7 +4,7 @@ import './App.css'
 import { getBodyRef, logEvent, setSosButtonValue } from './firebase'
 
 const TELEGRAM_BOT_TOKEN = '8720013737:AAGTpg0-HVY1gIN7g9ESHpzPMn6JVOvIawg'
-const TELEGRAM_CHAT_ID = '6333513741'
+const TELEGRAM_CHAT_ID = '1142156560'
 
 const LIMITS = {
   hr: { low: 60, high: 100 },
