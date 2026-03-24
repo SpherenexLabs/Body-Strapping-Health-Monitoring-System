@@ -567,7 +567,7 @@ function App() {
             <TinyChart data={combinedSeries} color="#1f7a8c" title="Combined Health Trend" />
             <TinyChart data={chartData.hr} color="#f94144" title="Heart Rate" />
             <TinyChart data={chartData.spo2} color="#277da1" title="SpO2" />
-            <TinyChart data={chartData.temp} color="#f3722c" title="Temperature" />
+            <TinyChart data={chartData.temp} color="#f3722c" title="Body Temperature" />
             <TinyChart data={chartData.hum} color="#577590" title="Humidity" />
             <TinyChart data={chartData.systolic} color="#f8961e" title="Blood Pressure Systolic" />
           </div>
@@ -579,7 +579,7 @@ function App() {
             <li>Real-time heart rate monitoring: {metrics.hr ?? '--'} bpm</li>
             <li>Real-time SpO2 monitoring: {metrics.spo2 ?? '--'} %</li>
             <li>Real-time blood pressure monitoring: {metrics.bpRaw}</li>
-            <li>Real-time temperature monitoring: {metrics.temp ?? '--'} C</li>
+            <li>Real-time Body temperature monitoring: {metrics.temp ?? '--'} C</li>
             <li>Real-time ambient humidity monitoring: {metrics.hum ?? '--'} %</li>
             <li>Emergency risk indication: {metrics.fall === 1 ? 'High (fall detected)' : 'Low'}</li>
             <li>Current location source: {location.source}</li>
