@@ -1,3 +1,5 @@
+
+
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { onValue } from 'firebase/database'
 import './App.css'
@@ -318,13 +320,18 @@ function App() {
     setEvents((prev) => [event, ...prev].slice(0, 25))
   }
 
+  const getTelegramAlertMessage = (message) => {
+    if (/calling ambulance-108/i.test(message)) return message
+    return `${message} calling ambulance-108`
+  }
+
   const triggerAlert = async (eventType, message, shouldPopup = false) => {
     const alertLocation = await resolveAlertLocation()
     const locationDetails = getLocationDetails(alertLocation)
     const eventTime = formatTime(Date.now())
     const telegramMessage = [
       `Body-Strapping Alert: ${eventType}`,
-      `Message: ${message}`,
+      `Message: ${getTelegramAlertMessage(message)}`,
       `Time: ${eventTime}`,
       `Location Source: ${locationDetails.source}`,
       `Coordinates: ${locationDetails.coordinates}`,
