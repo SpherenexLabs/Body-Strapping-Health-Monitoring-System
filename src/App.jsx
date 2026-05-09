@@ -263,9 +263,24 @@ function App() {
     }
   }
 
-  const getLocationText = (loc = location) => {
-    if (!loc?.lat || !loc?.lng) return 'Location unavailable'
-    return `https://maps.google.com/?q=${loc.lat},${loc.lng}`
+  const getLocationDetails = (loc = location) => {
+    const lat = Number(loc?.lat)
+    const lng = Number(loc?.lng)
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return {
+        coordinates: 'Location unavailable',
+        mapsUrl: 'Location unavailable',
+        source: loc?.source || 'Unknown',
+      }
+    }
+
+    const coordinates = `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+    return {
+      coordinates,
+      mapsUrl: `https://maps.google.com/?q=${encodeURIComponent(coordinates)}`,
+      source: loc?.source || 'Unknown',
+    }
   }
 
   const resolveAlertLocation = () => new Promise((resolve) => {
@@ -305,12 +320,15 @@ function App() {
 
   const triggerAlert = async (eventType, message, shouldPopup = false) => {
     const alertLocation = await resolveAlertLocation()
+    const locationDetails = getLocationDetails(alertLocation)
     const eventTime = formatTime(Date.now())
     const telegramMessage = [
       `Body-Strapping Alert: ${eventType}`,
       `Message: ${message}`,
       `Time: ${eventTime}`,
-      `Location: ${getLocationText(alertLocation)}`,
+      `Location Source: ${locationDetails.source}`,
+      `Coordinates: ${locationDetails.coordinates}`,
+      `Google Maps: ${locationDetails.mapsUrl}`,
     ].join('\n')
 
     console.log(`[ALERT] ${eventType}: ${message}`)
@@ -461,16 +479,15 @@ function App() {
 
       const hrLabel = getRangeLabel(next.hr, LIMITS.hr.low, LIMITS.hr.high)
       const spo2Label = getSpO2Label(next.spo2)
-      const tempLabel = getRangeLabel(next.temp, LIMITS.temp.low, LIMITS.temp.high)
       const bpSys = getRangeLabel(next.systolic, LIMITS.systolic.low, LIMITS.systolic.high)
 
       if (hrLabel === 'High' || hrLabel === 'Low') {
-        const hrMessage = `Heart rate is ${hrLabel} (${next.hr ?? 'N/A'} bpm). Calling ambulance 109.`
+        const hrMessage = `Heart rate is ${hrLabel} (${next.hr ?? 'N/A'} bpm). Calling ambulance-108.`
         console.log(`[HEALTH WARNING - HEART RATE] ${hrMessage}`)
         triggerWithCooldown('hr', 'Health Warning', hrMessage)
       }
       if (spo2Label === 'Low') {
-        const spo2Message = `SpO2 is low (${next.spo2 ?? 'N/A'}%). Calling ambulance 109.`
+        const spo2Message = `SpO2 is low (${next.spo2 ?? 'N/A'}%). Calling ambulance-108.`
         console.log(`[HEALTH WARNING - SPO2] ${spo2Message}`)
         triggerWithCooldown('spo2', 'Health Warning', spo2Message)
       }
