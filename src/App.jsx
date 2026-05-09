@@ -1,12 +1,12 @@
 
-
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { onValue } from 'firebase/database'
 import './App.css'
 import { getBodyRef, logEvent, setSosButtonValue } from './firebase'
 
 const TELEGRAM_BOT_TOKEN = '8720013737:AAGTpg0-HVY1gIN7g9ESHpzPMn6JVOvIawg'
-const TELEGRAM_CHAT_ID = '608728582'
+const TELEGRAM_CHAT_ID = '1142156560'
+const AMBULANCE_MESSAGE = 'calling ambulance-108'
 
 const LIMITS = {
   hr: { low: 60, high: 100 },
@@ -322,7 +322,7 @@ function App() {
 
   const getTelegramAlertMessage = (message) => {
     if (/calling ambulance-108/i.test(message)) return message
-    return `${message} calling ambulance-108`
+    return `${message} ${AMBULANCE_MESSAGE}`
   }
 
   const triggerAlert = async (eventType, message, shouldPopup = false) => {
@@ -345,10 +345,11 @@ function App() {
       openAlertModal(eventType, message, eventTime)
     }
 
-    const [eventResult, messageResult, locationResult] = await Promise.allSettled([
+    const [eventResult, messageResult, locationResult, ambulanceResult] = await Promise.allSettled([
       writeEvent(eventType, message, alertLocation),
       sendTelegramMessage(telegramMessage),
       sendTelegramLocation(alertLocation.lat, alertLocation.lng),
+      sendTelegramMessage(AMBULANCE_MESSAGE),
     ])
 
     if (eventResult.status === 'rejected') {
@@ -365,6 +366,14 @@ function App() {
 
     if (locationResult.status === 'rejected') {
       pushUiAlert('Telegram location pin failed, but message was attempted.', 'warning')
+    }
+
+    if (ambulanceResult.status === 'rejected') {
+      try {
+        await sendTelegramMessage(AMBULANCE_MESSAGE)
+      } catch {
+        pushUiAlert('Failed to send Telegram ambulance message.', 'danger')
+      }
     }
   }
 
