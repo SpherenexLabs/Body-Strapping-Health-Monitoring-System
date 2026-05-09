@@ -313,6 +313,7 @@ function App() {
       `Location: ${getLocationText(alertLocation)}`,
     ].join('\n')
 
+    console.log(`[ALERT] ${eventType}: ${message}`)
     pushUiAlert(`${eventType}: ${message}`, eventType === 'Emergency' ? 'danger' : 'warning')
 
     if (shouldPopup) {
@@ -440,11 +441,13 @@ function App() {
       })
 
       if (next.fall === 1 && previousFallRef.current !== 1) {
+        console.log('[EMERGENCY] Human fall detected.')
         triggerAlert('Emergency', 'Human fall detected.', true)
       }
       previousFallRef.current = next.fall
 
       if (next.button === 1 && previousButtonRef.current !== 1) {
+        console.log('[EMERGENCY] Emergency SOS alert triggered.')
         triggerAlert('Emergency', 'Emergency SOS alert.', true).finally(async () => {
           try {
             await setSosButtonValue(0)
@@ -462,16 +465,22 @@ function App() {
       const bpSys = getRangeLabel(next.systolic, LIMITS.systolic.low, LIMITS.systolic.high)
 
       if (hrLabel === 'High' || hrLabel === 'Low') {
-        triggerWithCooldown('hr', 'Health Warning', `Heart rate is ${hrLabel} (${next.hr ?? 'N/A'} bpm).`)
+        const hrMessage = `Heart rate is ${hrLabel} (${next.hr ?? 'N/A'} bpm). Calling ambulance 109.`
+        console.log(`[HEALTH WARNING - HEART RATE] ${hrMessage}`)
+        triggerWithCooldown('hr', 'Health Warning', hrMessage)
       }
       if (spo2Label === 'Low') {
-        triggerWithCooldown('spo2', 'Health Warning', `SpO2 is low (${next.spo2 ?? 'N/A'}%).`)
+        const spo2Message = `SpO2 is low (${next.spo2 ?? 'N/A'}%). Calling ambulance 109.`
+        console.log(`[HEALTH WARNING - SPO2] ${spo2Message}`)
+        triggerWithCooldown('spo2', 'Health Warning', spo2Message)
       }
       // if (tempLabel === 'High' || tempLabel === 'Low') {
       //   triggerWithCooldown('temp', 'Health Warning', `Temperature is ${tempLabel} (${next.temp ?? 'N/A'} C).`)
       // }
       if (bpSys === 'High' || bpSys === 'Low') {
-        triggerWithCooldown('bp', 'Health Warning', `Blood pressure trend is ${bpSys} (${next.bpRaw}).`)
+        const bpMessage = `Blood pressure trend is ${bpSys} (${next.bpRaw}).`
+        console.log(`[HEALTH WARNING - BLOOD PRESSURE] ${bpMessage}`)
+        triggerWithCooldown('bp', 'Health Warning', bpMessage)
       }
     })
 
